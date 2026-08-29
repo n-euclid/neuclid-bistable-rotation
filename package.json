@@ -1,0 +1,4 @@
+{
+  "scripts": {"dev": "vite --host 127.0.0.1 --port 5182"},
+  "dependencies": {"three": "^0.185.0", "vite": "^8.2.2"}
+}

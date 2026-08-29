@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Arrow illusion in 3D</title>
+  <style>
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#000;font-family:Arial,sans-serif}
+    body{background:#000}
+    #scene{display:grid;grid-template-columns:1fr 1fr;position:relative;width:100vw;height:100vh;overflow:hidden;background:#000}
+    #scene.mode-single{grid-template-columns:1fr}
+    #scene.mode-single #anticlockwise{display:none}
+    #sphere-viewer,#helix-viewer{display:none;position:absolute;inset:0;z-index:1;overflow:hidden;background:#000}
+    #scene.mode-sphere #clockwise,#scene.mode-sphere #anticlockwise,#scene.mode-helix #clockwise,#scene.mode-helix #anticlockwise{display:none}
+    #scene.mode-sphere #sphere-viewer{display:block}
+    #scene.mode-helix #helix-viewer{display:grid;grid-template-columns:1fr 1fr}
+    #scene.mode-sphere #guide-toggle{display:none}
+    .viewer{position:relative;min-width:0;overflow:hidden;background:#000}
+    #anticlockwise{border-left:1px solid #ffffff30}
+    .viewer canvas{display:block;width:100%;height:100%}
+    #sphere-viewer canvas,#helix-viewer canvas{display:block;width:100%;height:100%}
+    .helix-panel{position:relative;min-width:0;overflow:hidden;background:#000}
+    #helix-right{border-left:1px solid #ffffff30}
+    .orbit-guide{position:absolute;left:50%;bottom:3.5%;z-index:3;width:min(46%,310px);height:auto;transform:translateX(-50%);opacity:0;pointer-events:none;transition:opacity .22s ease}
+    .guides-on .orbit-guide{opacity:1}
+    .orbit-arc{stroke:none}
+    .orbit-yellow{fill:#ffa838}
+    .orbit-blue{fill:#0624ff}
+    .orbit-dot{fill:#42d3e3;stroke:#eaffff;stroke-width:1.5;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 4px #42d3e399)}
+    .global-controls{position:absolute;right:18px;bottom:64px;z-index:6;display:flex;align-items:center;gap:11px;opacity:.42;transition:opacity .2s ease}
+    .global-controls:hover,.global-controls:focus-within{opacity:1}
+    .round-control{position:relative;width:27px;height:27px;border:1px solid #ffffff9c;border-radius:50%;background:#1119;cursor:pointer;box-shadow:0 4px 14px #0006;backdrop-filter:blur(7px)}
+    .round-control:hover{background:#ffffff18;border-color:#fff}
+    .round-control:focus-visible{outline:2px solid #fff;outline-offset:3px}
+    #record-start::after{content:"";position:absolute;left:50%;top:50%;width:9px;height:9px;border-radius:50%;background:#ff3f36;transform:translate(-50%,-50%);box-shadow:0 0 7px #ff3f3699}
+    #record-pause::before,#record-pause::after{content:"";position:absolute;top:7px;width:3px;height:13px;border-radius:1px;background:#fff}
+    #record-pause::before{left:8px}
+    #record-pause::after{right:8px}
+    #record-pause.is-paused::before{left:9px;top:7px;width:0;height:0;border-top:6.5px solid transparent;border-bottom:6.5px solid transparent;border-left:10px solid #fff;border-radius:0;background:transparent}
+    #record-pause.is-paused::after{display:none}
+    #record-stop::after{content:"";position:absolute;left:50%;top:50%;width:9px;height:9px;border-radius:1px;background:#fff;transform:translate(-50%,-50%)}
+    #record-pause,#record-stop{display:none}
+    .recording #record-start{display:none}
+    .recording #record-pause,.recording #record-stop{display:block}
+    .recording .global-controls{opacity:.9}
+    #record-status{display:none;align-items:center;height:27px;padding:0 7px;color:#fff;font:600 10px/1 Arial,sans-serif;letter-spacing:.08em}
+    .recording #record-status{display:flex}
+    #record-status::before{content:"";width:6px;height:6px;margin-right:5px;border-radius:50%;background:#ff3f36;box-shadow:0 0 6px #ff3f36}
+    .recording-paused #record-status::before{opacity:.35;box-shadow:none}
+    #record-message{position:absolute;left:50%;bottom:106px;z-index:8;max-width:min(440px,80vw);padding:8px 11px;border:1px solid #ffffff33;border-radius:7px;background:#111e;color:#fff;font-size:12px;line-height:1.3;transform:translateX(-50%);opacity:0;pointer-events:none;transition:opacity .2s ease}
+    #record-message.is-visible{opacity:1}
+    .mode-controls{position:absolute;left:18px;bottom:64px;z-index:7;display:flex;gap:10px;opacity:.46;transition:opacity .2s ease}
+    .mode-controls:hover,.mode-controls:focus-within{opacity:1}
+    .mode-button{width:27px;height:27px;padding:0;border:1px solid #ffffff80;border-radius:50%;background:#1119;color:#ffffffb8;font:600 11px/1 Arial,sans-serif;cursor:pointer;box-shadow:0 4px 14px #0006;backdrop-filter:blur(7px)}
+    .mode-button:hover,.mode-button[aria-pressed="true"]{border-color:#fff;background:#ffffff18;color:#fff}
+    .mode-button:focus-visible{outline:2px solid #fff;outline-offset:3px}
+    .special-label{position:absolute;left:50%;top:22px;z-index:4;transform:translateX(-50%);color:#ffffffa8;font-size:10px;font-weight:700;letter-spacing:.16em;text-align:center;text-transform:uppercase;pointer-events:none}
+    .special-label strong{display:block;margin-top:7px;color:#fff;font-size:14px;letter-spacing:.02em;text-transform:none}
+    .axis-label{position:absolute;z-index:4;color:#ffffffa0;font:700 10px/1 Arial,sans-serif;letter-spacing:.13em;text-transform:uppercase;pointer-events:none}
+    .axis-x{left:18%;top:52%}.axis-y{left:50%;top:15%}.axis-z{right:18%;top:52%}
+    #colour-toggle::after{content:"";position:absolute;left:50%;top:50%;width:13px;height:13px;border:1px solid #ffffff9c;border-radius:50%;background:linear-gradient(90deg,#ffa838 0 47%,#0624ff 53% 100%);transform:translate(-50%,-50%);transition:transform .24s ease}
+    #colour-toggle[aria-pressed="true"]::after{transform:translate(-50%,-50%) rotate(180deg)}
+    #guide-toggle::after{content:"";position:absolute;left:50%;top:5px;width:2px;height:15px;border-radius:2px;background:#ff463c;transform:translateX(-50%);box-shadow:0 0 5px #ff463c99}
+    #guide-toggle[aria-pressed="true"]{border-color:#ff675f;background:#40100dcc}
+    #fullscreen-toggle svg{position:absolute;inset:6px;width:13px;height:13px;fill:none;stroke:#fff;stroke-width:1.5}
+    html:fullscreen .global-controls{opacity:0}
+    html:fullscreen .mode-controls{opacity:0}
+    html:fullscreen .recording .global-controls{opacity:.9}
+    html:fullscreen .global-controls:hover,html:fullscreen .global-controls:focus-within{opacity:1}
+    html:fullscreen .mode-controls:hover,html:fullscreen .mode-controls:focus-within{opacity:1}
+    @media (max-width:760px){.global-controls{right:9px;bottom:48px;gap:8px}.mode-controls{left:9px;bottom:48px;gap:7px}.round-control,.mode-button{width:24px;height:24px}.orbit-guide{width:55%}.axis-label{display:none}}
+  </style>
+</head>
+<body>
+  <main id="scene" class="mode-dual">
+    <section class="viewer arrow-viewer" id="clockwise" aria-label="Clockwise 3D arrow">
+      <svg class="orbit-guide" viewBox="0 0 300 70" aria-hidden="true"><path class="orbit-arc orbit-yellow" d="M35 35 A115 22 0 0 1 265 35 L263 31 A113 16 0 0 0 37 31 Z"></path><path class="orbit-arc orbit-blue" d="M35 35 A115 22 0 0 0 265 35 L263 31 A113 16 0 0 1 37 31 Z"></path><circle class="orbit-dot" cx="150" cy="13" r="5.5"></circle></svg>
+    </section>
+    <section class="viewer arrow-viewer" id="anticlockwise" aria-label="Anticlockwise 3D arrow">
+      <svg class="orbit-guide" viewBox="0 0 300 70" aria-hidden="true"><path class="orbit-arc orbit-blue" d="M35 35 A115 22 0 0 1 265 35 L263 31 A113 16 0 0 0 37 31 Z"></path><path class="orbit-arc orbit-yellow" d="M35 35 A115 22 0 0 0 265 35 L263 31 A113 16 0 0 1 37 31 Z"></path><circle class="orbit-dot" cx="150" cy="13" r="5.5"></circle></svg>
+    </section>
+    <section id="sphere-viewer" aria-label="Ribbon arrows rotating around three axes"><div class="special-label">Ribbon arrow sphere<strong>Three rotation axes</strong></div><span class="axis-label axis-x">X axis</span><span class="axis-label axis-y">Y axis</span><span class="axis-label axis-z">Z axis</span></section>
+    <section id="helix-viewer" aria-label="Opposing ambiguous double helices"><div class="special-label">Opposing double helices<strong>Which way does each one turn</strong></div><div class="helix-panel" id="helix-left" aria-label="Double helix rotating in the first direction"></div><div class="helix-panel" id="helix-right" aria-label="Double helix rotating in the opposite direction"></div></section>
+    <div class="mode-controls" aria-label="Animation mode">
+      <button class="mode-button" id="mode-single" type="button" aria-label="Show one spinning ribbon" aria-pressed="false">1</button>
+      <button class="mode-button" id="mode-dual" type="button" aria-label="Show two spinning ribbons" aria-pressed="true">2</button>
+      <button class="mode-button" id="mode-sphere" type="button" aria-label="Show ribbon arrow sphere on three axes" aria-pressed="false">3</button>
+      <button class="mode-button" id="mode-helix" type="button" aria-label="Show ambiguous double helix" aria-pressed="false">4</button>
+    </div>
+    <div class="global-controls"><button class="round-control" id="colour-toggle" type="button" aria-label="Reverse this mode colour direction" aria-pressed="false"></button><button class="round-control" id="reset-view" type="button" aria-label="Return both arrows to their original views"></button><button class="round-control" id="guide-toggle" type="button" aria-label="Show central pillars and orbit guides" aria-pressed="false"></button><button class="round-control" id="record-start" type="button" aria-label="Record screen and microphone"></button><button class="round-control" id="record-pause" type="button" aria-label="Pause recording"></button><button class="round-control" id="record-stop" type="button" aria-label="Stop and save recording"></button><span id="record-status" aria-live="polite">REC</span><button class="round-control" id="fullscreen-toggle" type="button" aria-label="Enter full screen"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M5 1H1v4M9 1h4v4M5 13H1V9M9 13h4V9"></path></svg></button></div>
+    <div id="record-message" role="status" aria-live="polite"></div>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
